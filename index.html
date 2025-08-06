@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Entrenamiento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Firebase SDKs (Compat version for browser script tags) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // --- Iconos SVG ---
+        const DumbbellIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 h-6 w-6"><path d="M14.4 14.4 9.6 9.6" /><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l-1.768 1.768a2 2 0 1 1-2.828-2.828l-1.768 1.768a2 2 0 1 1-2.829-2.828l5.657-5.657a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829l1.768-1.768a2 2 0 1 1 2.828 2.828l1.768-1.768a2 2 0 1 1 2.829 2.829z" /></svg>;
+        const TrashIcon = ({ className = "h-5 w-5" }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>;
+        const PlusIcon = ({ className = "mr-2 h-5 w-5" }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+        const TimerIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+        const StopCircleIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6"/></svg>;
+        const PlayCircleIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>;
+        const BookOpenIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>;
+        const UploadCloudIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>;
+        const CheckCircleIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>;
+        const UsersIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+        const UserPlusIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>;
+        const CopyIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const CheckIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12"/></svg>;
+        const SendIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+        const LogOutIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+        const EditIcon = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>;
+
+        const Modal = ({ isOpen, onClose, title, children }) => {
+            if (!isOpen) return null;
+            return ReactDOM.createPortal(
+                <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4">
+                    <div className="bg-slate-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center p-4 border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
+                            <h3 className="text-xl font-bold text-cyan-400">{title}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white text-3xl leading-none">&times;</button>
+                        </div>
+                        <div className="p-6">{children}</div>
+                    </div>
+                </div>,
+                document.body
+            );
+        };
+
+        const WorkoutLogger = ({ userRole, userId, linkedCoachId, coachIdInput, setCoachIdInput, handleLinkCoach, liveRoutine, routines, assignedRoutines, sessionStatus, handleStartSession, handleSaveAndEndSession, handleNewSession, sessionTotalTime, handleLiveSetChange, handleLogSet, setIsRoutineModalOpen, workouts, handleResetRole, onExit, clientName, handleLoadRoutine, formatTime, newRoutineName, setNewRoutineName, newRoutineExercises, setNewRoutineExercises, handleRoutineExerciseChange, addExerciseToRoutine, removeExerciseFromRoutine, handleSaveRoutine, handleDeleteRoutine, isRoutineModalOpen }) => {
+            const calculateSessionTotals = (sessionWorkouts) => {
+                const totalVolume = sessionWorkouts.reduce((acc, w) => acc + w.sets.reduce((vol, s) => vol + (s.reps * s.weight), 0), 0);
+                const totalReps = sessionWorkouts.reduce((acc, w) => acc + w.sets.reduce((sum, s) => sum + s.reps, 0), 0);
+                const totalTime = sessionWorkouts.length > 0 ? sessionWorkouts[0].totalSessionTime : 0;
+                return { totalVolume, totalReps, totalTime };
+            };
+            const groupedWorkouts = useMemo(() => {
+                const groups = {};
+                (workouts || []).forEach(workout => {
+                    if (!groups[workout.date]) groups[workout.date] = [];
+                    groups[workout.date].push(workout);
+                });
+                return Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
+            }, [workouts]);
+
+            const renderTimerDisplay = () => {
+                switch(sessionStatus) {
+                    case 'not_started':
+                        return <div className="flex items-center gap-2 bg-slate-700 text-slate-400 px-4 py-2 rounded-lg"><TimerIcon className="h-6 w-6"/><span className="text-lg font-semibold">No Iniciada</span></div>;
+                    case 'active':
+                        return <div className="flex items-center gap-2 bg-slate-700 px-4 py-2 rounded-lg"><TimerIcon className="text-cyan-400 h-6 w-6 animate-pulse"/><span className="text-lg font-mono">{formatTime(sessionTotalTime)}</span><span className="text-xs text-slate-400">Sesión Activa</span></div>;
+                    case 'finished':
+                        return <div className="flex items-center gap-2 bg-red-900/50 text-red-300 px-4 py-2 rounded-lg"><StopCircleIcon className="h-6 w-6"/><span className="text-lg font-semibold">Finalizada</span></div>;
+                    default:
+                        return null;
+                }
+            }
+
+            return (
+                <div className="bg-slate-900 min-h-screen text-white font-sans p-4 md:p-8">
+                    <div className="max-w-5xl mx-auto">
+                        <Modal isOpen={isRoutineModalOpen} onClose={() => setIsRoutineModalOpen(false)} title="Gestor de Rutinas">
+                            <div className="space-y-6">
+                                {userRole === 'client' && (
+                                    <div>
+                                        <h3 className="text-lg font-semibold mb-3 text-cyan-400">Rutinas Asignadas por el Entrenador</h3>
+                                        <ul className="space-y-2">
+                                            {assignedRoutines.length > 0 ? assignedRoutines.map(r => (
+                                                <li key={`assigned-${r.id}`} className="flex justify-between items-center bg-slate-700 p-3 rounded-lg">
+                                                    <div><p>{r.name} <span className="text-xs text-slate-400">({r.exercises.length} ej.)</span></p></div>
+                                                    <button onClick={() => handleLoadRoutine(r)} className="text-cyan-400 hover:text-cyan-300 p-2 text-sm font-semibold flex items-center gap-1"><UploadCloudIcon className="h-4 w-4"/>Cargar</button>
+                                                </li>
+                                            )) : <p className="text-slate-400">No tienes rutinas asignadas.</p>}
+                                        </ul>
+                                        <hr className="border-slate-600 my-6"/>
+                                    </div>
+                                )}
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-3 text-cyan-400">{userRole === 'client' ? "Mis Rutinas Personales" : "Crear Nueva Rutina"}</h3>
+                                    <div className="space-y-4 p-4 bg-slate-700 rounded-lg">
+                                        <input type="text" placeholder="Nombre de la Rutina (ej: Día de Piernas)" value={newRoutineName} onChange={e => setNewRoutineName(e.target.value)} className="w-full bg-slate-600 text-white rounded-md p-2 border border-slate-500"/>
+                                        {newRoutineExercises.map((ex, index) => (
+                                            <div key={index} className="flex items-center gap-2">
+                                                <input type="text" placeholder="Nombre del Ejercicio" value={ex.name} onChange={e => handleRoutineExerciseChange(index, 'name', e.target.value)} className="w-full bg-slate-600 text-white rounded-md p-2 border border-slate-500"/>
+                                                <input type="number" value={ex.sets} onChange={e => handleRoutineExerciseChange(index, 'sets', e.target.value)} className="w-24 bg-slate-600 text-white rounded-md p-2 border border-slate-500"/>
+                                                <label className="text-sm text-slate-400">series</label>
+                                                <button onClick={() => removeExerciseFromRoutine(index)} className="text-red-500 hover:text-red-400 p-2"><TrashIcon className="h-4 w-4"/></button>
+                                            </div>
+                                        ))}
+                                        <button onClick={addExerciseToRoutine} className="text-sm text-cyan-400 hover:text-cyan-300">+ Añadir Ejercicio</button>
+                                    </div>
+                                    <button onClick={handleSaveRoutine} className="mt-4 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md">Guardar Rutina</button>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-3 text-cyan-400">Rutinas Guardadas</h3>
+                                    <ul className="space-y-2">
+                                        {routines.length > 0 ? routines.map(r => (
+                                            <li key={`personal-${r.id}`} className="flex justify-between items-center bg-slate-700 p-3 rounded-lg">
+                                                <div><p>{r.name} <span className="text-xs text-slate-400">({r.exercises.length} ej.)</span></p></div>
+                                                <div className="flex items-center gap-2">
+                                                    {userRole === 'client' && <button onClick={() => handleLoadRoutine(r)} className="text-cyan-400 hover:text-cyan-300 p-2 text-sm font-semibold flex items-center gap-1"><UploadCloudIcon className="h-4 w-4"/>Cargar</button>}
+                                                    <button onClick={() => handleDeleteRoutine(r.id)} className="text-red-500 hover:text-red-400 p-2"><TrashIcon/></button>
+                                                </div>
+                                            </li>
+                                        )) : <p className="text-slate-400">No tienes rutinas guardadas.</p>}
+                                    </ul>
+                                </div>
+                            </div>
+                        </Modal>
+                        <header className="flex justify-between items-center mb-8">
+                            <div className="flex items-center">
+                                <DumbbellIcon />
+                                <h1 className="text-3xl md:text-4xl font-bold text-cyan-400">
+                                    {userRole === 'coach' ? `Registrando para ${clientName}` : "Registro de Entrenamiento"}
+                                </h1>
+                            </div>
+                            <button onClick={userRole === 'coach' ? onExit : handleResetRole} className="text-slate-400 hover:text-white p-2 rounded-full" title={userRole === 'coach' ? "Volver al Panel" : "Cambiar Rol"}>
+                                <LogOutIcon className="h-6 w-6"/>
+                            </button>
+                        </header>
+                        
+                        {userRole === 'client' && !linkedCoachId && (
+                            <div className="bg-slate-800 p-6 rounded-xl shadow-lg mb-8">
+                                <h2 className="text-xl font-semibold mb-4 flex items-center"><UserPlusIcon className="mr-2"/>Vincular con Entrenador</h2>
+                                <div className="flex items-center gap-4">
+                                    <input type="text" value={coachIdInput} onChange={e => setCoachIdInput(e.target.value)} placeholder="Introduce el ID de tu Entrenador" className="w-full bg-slate-700 text-white rounded-md p-2 border border-slate-600"/>
+                                    <button onClick={handleLinkCoach} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md">Vincular</button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="bg-slate-800 p-6 rounded-xl shadow-lg mb-8">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-semibold">Sesión de Hoy</h2>
+                                <button onClick={() => setIsRoutineModalOpen(true)} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-2 px-4 rounded-md transition-colors duration-300 text-sm"><BookOpenIcon className="h-5 w-5"/> Mis Rutinas</button>
+                            </div>
+                            <div className="flex justify-between items-center mb-6 p-4 bg-slate-900/50 rounded-lg">
+                                {renderTimerDisplay()}
+                                {sessionStatus === 'not_started' && <button onClick={handleStartSession} className="flex justify-center items-center gap-2 bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-md transition-colors duration-300 disabled:opacity-50" disabled={!liveRoutine}><PlayCircleIcon className="h-6 w-6"/>Iniciar Sesión</button>}
+                                {sessionStatus === 'active' && <button onClick={handleSaveAndEndSession} className="flex justify-center items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-md transition-colors duration-300"><StopCircleIcon className="h-6 w-6"/>Guardar y Finalizar</button>}
+                                {sessionStatus === 'finished' && <button onClick={handleNewSession} className="flex justify-center items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors duration-300"><PlusIcon className="h-6 w-6"/>Nueva Sesión</button>}
+                            </div>
+                            {liveRoutine ? (
+                                <fieldset disabled={sessionStatus !== 'active'} className="space-y-6">
+                                    <h3 className="text-xl font-bold text-cyan-400">{liveRoutine.name}</h3>
+                                    {liveRoutine.exercises.map((ex, exIndex) => (
+                                        <div key={ex.id || exIndex} className="p-4 bg-slate-700/50 rounded-lg">
+                                            <h4 className="font-semibold text-lg mb-3">{ex.name}</h4>
+                                            <div className="space-y-3">
+                                                {ex.setsData.map((setData, setIndex) => (
+                                                    <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_auto] items-center gap-3">
+                                                        <span className="text-slate-400 font-semibold">Serie {setIndex + 1}:</span>
+                                                        <input type="number" placeholder="Reps" value={setData.reps} onChange={(e) => handleLiveSetChange(exIndex, setIndex, 'reps', e.target.value)} className="w-full bg-slate-700 text-white rounded-md p-2 border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-50"/>
+                                                        <input type="number" placeholder="Peso (kg)" value={setData.weight} onChange={(e) => handleLiveSetChange(exIndex, setIndex, 'weight', e.target.value)} className="w-full bg-slate-700 text-white rounded-md p-2 border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-50"/>
+                                                        {setData.logged ? (
+                                                            <span className="text-cyan-400 font-mono text-sm flex items-center gap-1"><CheckCircleIcon className="h-5 w-5"/> {formatTime(setData.completionTime).substring(3)}</span>
+                                                        ) : (
+                                                            <button type="button" onClick={() => handleLogSet(exIndex, setIndex)} disabled={!setData.reps || !setData.weight} className="text-white bg-cyan-700 hover:bg-cyan-600 rounded-full p-2 disabled:bg-slate-600 disabled:text-slate-400 transition-colors">
+                                                                <CheckCircleIcon className="h-5 w-5"/>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </fieldset>
+                            ) : (<div className="text-center py-10 px-4 bg-slate-700/30 rounded-lg"><p className="text-slate-400">Carga una rutina desde "Mis Rutinas" para empezar.</p></div>)}
+                        </div>
+                        { userRole === 'client' && 
+                            <div className="bg-slate-800 p-4 rounded-xl shadow-lg mb-8">
+                                <div className="flex justify-between items-center mb-4"><h3 className="text-xl font-semibold">Mi Historial</h3></div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="sticky top-0 bg-slate-800 z-10"><tr className="border-b border-slate-700"><th className="p-4 text-sm font-semibold text-slate-300">Ejercicio</th><th className="p-4 text-sm font-semibold text-slate-300">Detalle</th><th className="p-4 text-sm font-semibold text-slate-300">Tiempos</th><th className="p-4 text-sm font-semibold text-slate-300 text-center">Acciones</th></tr></thead>
+                                        <tbody>
+                                        {groupedWorkouts.length > 0 ? (groupedWorkouts.map(date => {
+                                                const sessionWorkouts = workouts.filter(w => w.date === date);
+                                                const sessionTotals = calculateSessionTotals(sessionWorkouts);
+                                                return (<React.Fragment key={date}>
+                                                        <tr className="bg-slate-700"><th colSpan="4" className="p-3 text-md font-semibold text-white">{new Date(date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</th></tr>
+                                                        {sessionWorkouts.map(w => (<tr key={w.id} className="border-b border-slate-700/50 hover:bg-slate-700/50">
+                                                            <td className="p-4 font-medium text-cyan-400">{w.exercise}</td>
+                                                            <td className="p-4 font-mono text-sm">{w.sets.map(s => `${s.reps}x${s.weight}kg`).join(' / ')}</td>
+                                                            <td className="p-4 font-mono text-xs text-slate-400">{w.setCompletionTimes?.map(t => formatTime(t)).join(' / ') || 'N/A'}</td>
+                                                            <td className="p-4 text-center"><div className="flex justify-center items-center gap-2">
+                                                                <button onClick={() => { setWorkouts(prev => prev.filter(pw => pw.id !== w.id)) }} title="Eliminar registro" className="text-red-500 hover:text-red-400 p-2 rounded-full"><TrashIcon /></button>
+                                                            </div></td></tr>))}
+                                                        <tr className="bg-slate-800 border-b-4 border-slate-900 text-cyan-300">
+                                                            <td className="p-3 font-bold text-right" colSpan="2">Total Sesión:</td>
+                                                            <td className="p-3 font-bold font-mono text-sm" colSpan="2">{sessionTotals.totalVolume.toLocaleString('es-ES')} kg / {sessionTotals.totalReps} reps / {formatTime(sessionTotals.totalTime)}</td>
+                                                        </tr>
+                                                    </React.Fragment>)
+                                            })) : (<tr><td colSpan="4" className="text-center p-8 text-slate-400">No hay registros guardados.</td></tr>)}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            );
+        }
+
+        function App() {
+          // Estados de Firebase y Autenticación
+          const [db, setDb] = useState(null);
+          const [auth, setAuth] = useState(null);
+          const [userId, setUserId] = useState(null);
+          const [userRole, setUserRole] = useState(null);
+
+          // Estados de la aplicación
+          const [workouts, setWorkouts] = useState([]);
+          const [routines, setRoutines] = useState([]);
+          const [liveRoutine, setLiveRoutine] = useState(null);
+          const [sessionStatus, setSessionStatus] = useState('not_started');
+          const [sessionStartTime, setSessionStartTime] = useState(0);
+          const [sessionTotalTime, setSessionTotalTime] = useState(0);
+          const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+          const [error, setError] = useState('');
+          const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
+          const [newRoutineName, setNewRoutineName] = useState('');
+          const [newRoutineExercises, setNewRoutineExercises] = useState([{ name: '', sets: 3 }]);
+          const [copySuccess, setCopySuccess] = useState(false);
+
+          // Estados específicos de Coach
+          const [clients, setClients] = useState([]);
+          const [selectedClientId, setSelectedClientId] = useState(null);
+          const [clientWorkouts, setClientWorkouts] = useState([]);
+          const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+          const [loggingForClient, setLoggingForClient] = useState(null); // {id, name}
+
+          // Estados específicos de Cliente
+          const [coachIdInput, setCoachIdInput] = useState('');
+          const [linkedCoachId, setLinkedCoachId] = useState('');
+          const [assignedRoutines, setAssignedRoutines] = useState([]);
+          
+          const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+          // --- Inicialización y Autenticación de Firebase ---
+          useEffect(() => {
+            const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+            try {
+                const config = JSON.parse(configStr);
+                if (config && config.projectId) {
+                    const app = firebase.initializeApp(config);
+                    setDb(app.firestore());
+                    setAuth(app.auth());
+                } else { setError("Configuración de Firebase no encontrada."); }
+            } catch (e) { setError("Error en la configuración de Firebase."); }
+          }, []);
+
+          useEffect(() => {
+            if (!auth || !db) return;
+            const unsubscribe = auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    setUserId(user.uid);
+                    const userDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid);
+                    const docSnap = await userDocRef.get();
+                    if (docSnap.exists && docSnap.data().role) {
+                        const data = docSnap.data();
+                        setUserRole(data.role);
+                        if(data.role === 'client') { setLinkedCoachId(data.coachId || ''); }
+                    }
+                } else {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await auth.signInWithCustomToken(__initial_auth_token);
+                        } else { await auth.signInAnonymously(); }
+                    } catch (authError) { setError("No se pudo conectar al servicio."); }
+                }
+            });
+            return () => unsubscribe();
+          }, [auth, db, appId]);
+
+          // --- Listeners de datos según el rol ---
+          useEffect(() => {
+            if (!db || !userId || !userRole) return;
+            let unsubscribes = [];
+
+            if (userRole === 'client') {
+                const workoutsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId).collection('workouts');
+                unsubscribes.push(workoutsRef.onSnapshot((snapshot) => setWorkouts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))));
+                
+                const assignedRoutinesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId).collection('assigned_routines');
+                unsubscribes.push(assignedRoutinesRef.onSnapshot((snapshot) => setAssignedRoutines(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))));
+                
+                const personalRoutinesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId).collection('routines');
+                unsubscribes.push(personalRoutinesRef.onSnapshot((snapshot) => setRoutines(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))));
+
+
+            } else if (userRole === 'coach') {
+                const clientsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId).collection('clients');
+                unsubscribes.push(clientsRef.onSnapshot((snapshot) => setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))));
+                
+                const routinesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId).collection('routines');
+                unsubscribes.push(routinesRef.onSnapshot((snapshot) => setRoutines(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))));
+            }
+
+            return () => { unsubscribes.forEach(unsub => unsub()); };
+          }, [db, userId, userRole, appId]);
+          
+          useEffect(() => {
+              if(userRole === 'coach' && selectedClientId) {
+                  const clientWorkoutsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(selectedClientId).collection('workouts');
+                  const unsubscribe = clientWorkoutsRef.onSnapshot((snapshot) => setClientWorkouts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+                  return () => unsubscribe();
+              }
+          }, [db, userRole, selectedClientId, appId]);
+
+          useEffect(() => {
+            let interval = null;
+            if (sessionStatus === 'active') {
+              interval = setInterval(() => {
+                setSessionTotalTime(Math.floor((Date.now() - sessionStartTime) / 1000));
+              }, 1000);
+            }
+            return () => { if (interval) clearInterval(interval); };
+          }, [sessionStatus, sessionStartTime]);
+
+          const handleSaveAndEndSession = async () => {
+              const targetUserId = loggingForClient ? loggingForClient.id : userId;
+              if (!liveRoutine || !targetUserId) return;
+
+              const newWorkoutsData = liveRoutine.exercises.map(exercise => {
+                  const loggedSets = exercise.setsData.filter(s => s.logged);
+                  if (loggedSets.length === 0) return null;
+                  return {
+                      id: Date.now() + Math.random(),
+                      date: date,
+                      exercise: exercise.name,
+                      sets: loggedSets.map(s => ({ reps: parseInt(s.reps), weight: parseFloat(s.weight) })),
+                      setCompletionTimes: loggedSets.map(s => s.completionTime),
+                      totalSessionTime: sessionTotalTime
+                  };
+              }).filter(Boolean);
+
+              if (newWorkoutsData.length > 0) {
+                  const userWorkoutsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(targetUserId).collection('workouts');
+                  for (const workout of newWorkoutsData) {
+                      await userWorkoutsRef.doc(workout.id.toString()).set(workout);
+                  }
+              }
+              setSessionStatus('finished');
+              setLiveRoutine(null);
+              if(loggingForClient) {
+                  setLoggingForClient(null);
+              }
+          };
+          
+          const handleSetUserRole = async (role) => {
+              if (!userId || !db) return;
+              const userDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId);
+              await userDocRef.set({ role: role }, { merge: true });
+              setUserRole(role);
+          };
+
+          const handleResetRole = async () => {
+              if (!userId || !db) return;
+              const userDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId);
+              await userDocRef.set({ role: null }, { merge: true });
+              setUserRole(null);
+          };
+          
+          const handleLinkCoach = async () => {
+              if(!coachIdInput.trim() || !userId || !db) { setError("Por favor, introduce el ID de tu entrenador."); return; }
+              const coachId = coachIdInput.trim();
+              const coachClientRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(coachId).collection('clients').doc(userId);
+              await coachClientRef.set({ clientId: userId, clientName: `Cliente ${userId.substring(0,5)}` });
+              const userDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId);
+              await userDocRef.set({ coachId: coachId }, { merge: true });
+              setLinkedCoachId(coachId);
+              setCoachIdInput('');
+              alert("¡Vinculado con el entrenador con éxito!");
+          };
+
+          const copyUserId = () => {
+            const textArea = document.createElement("textarea");
+            textArea.value = userId;
+            textArea.style.position = "fixed"; textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus(); textArea.select();
+            try {
+                document.execCommand('copy');
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 2000);
+            } catch (err) { setError('No se pudo copiar el ID.'); }
+            document.body.removeChild(textArea);
+          };
+
+          const handleStartSession = () => { 
+              if (!liveRoutine) { setError("Primero carga una rutina."); return; }
+              setError(''); setSessionStatus('active'); setSessionStartTime(Date.now()); 
+          };
+          const handleNewSession = () => {
+              setSessionStatus('not_started'); setDate(new Date().toISOString().slice(0, 10)); setSessionTotalTime(0);
+          };
+          const formatTime = (seconds) => new Date(seconds * 1000).toISOString().substr(11, 8);
+          
+          const handleLoadRoutine = (routine) => {
+              setLiveRoutine({
+                  ...routine,
+                  exercises: routine.exercises.map(ex => ({
+                      ...ex,
+                      setsData: Array.from({ length: ex.sets }, () => ({ reps: '', weight: '', completionTime: null, logged: false }))
+                  }))
+              });
+              setIsRoutineModalOpen(false);
+          };
+          
+          const handleLiveSetChange = (exerciseIndex, setIndex, field, value) => {
+              const updatedLiveRoutine = { ...liveRoutine };
+              updatedLiveRoutine.exercises[exerciseIndex].setsData[setIndex][field] = value;
+              setLiveRoutine(updatedLiveRoutine);
+          };
+          const handleLogSet = (exerciseIndex, setIndex) => {
+            const updatedLiveRoutine = { ...liveRoutine };
+            const set = updatedLiveRoutine.exercises[exerciseIndex].setsData[setIndex];
+            set.completionTime = sessionTotalTime; set.logged = true;
+            setLiveRoutine(updatedLiveRoutine);
+          };
+          const calculateSessionTotals = (sessionWorkouts) => {
+            const totalVolume = sessionWorkouts.reduce((acc, w) => acc + w.sets.reduce((vol, s) => vol + (s.reps * s.weight), 0), 0);
+            const totalReps = sessionWorkouts.reduce((acc, w) => acc + w.sets.reduce((sum, s) => sum + s.reps, 0), 0);
+            const totalTime = sessionWorkouts.length > 0 ? sessionWorkouts[0].totalSessionTime : 0;
+            return { totalVolume, totalReps, totalTime };
+          };
+          
+          const groupedWorkouts = useMemo(() => {
+            const groups = {};
+            workouts.forEach(workout => {
+                if (!groups[workout.date]) groups[workout.date] = [];
+                groups[workout.date].push(workout);
+            });
+            return Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
+          }, [workouts]);
+          
+          const selectedClientWorkoutsGrouped = useMemo(() => {
+            const groups = {};
+            clientWorkouts.forEach(workout => {
+                if (!groups[workout.date]) groups[workout.date] = [];
+                groups[workout.date].push(workout);
+            });
+            return Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
+          }, [clientWorkouts]);
+
+          const handleSaveRoutine = async () => {
+              if (!newRoutineName.trim() || newRoutineExercises.some(e => !e.name.trim())) {
+                  alert("El nombre de la rutina y de cada ejercicio son obligatorios.");
+                  return;
+              }
+              const newRoutine = {
+                  name: newRoutineName,
+                  exercises: newRoutineExercises.map(e => ({ ...e, sets: parseInt(e.sets, 10) || 3 }))
+              };
+              
+              const routinesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId).collection('routines');
+              await routinesRef.add(newRoutine);
+
+              setNewRoutineName('');
+              setNewRoutineExercises([{ name: '', sets: 3 }]);
+              setIsRoutineModalOpen(false);
+          };
+
+          const handleDeleteRoutine = async (id) => {
+              if (window.confirm("¿Estás seguro de que quieres eliminar esta rutina?")) {
+                  const routineDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userId).collection('routines').doc(id);
+                  await routineDocRef.delete();
+              }
+          };
+
+          const handleAssignRoutine = async (routine) => {
+              if (!selectedClientId) return;
+              const assignedRoutinesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(selectedClientId).collection('assigned_routines');
+              await assignedRoutinesRef.add({ ...routine, assignedBy: userId });
+              setIsAssignModalOpen(false);
+              alert(`Rutina "${routine.name}" asignada con éxito.`);
+          };
+
+          const handleRoutineExerciseChange = (index, field, value) => {
+              const updatedExercises = [...newRoutineExercises];
+              updatedExercises[index][field] = value;
+              setNewRoutineExercises(updatedExercises);
+          };
+          const addExerciseToRoutine = () => setNewRoutineExercises([...newRoutineExercises, { name: '', sets: 3 }]);
+          const removeExerciseFromRoutine = (index) => setNewRoutineExercises(newRoutineExercises.filter((_, i) => i !== index));
+
+          if (!userId) {
+              return <div className="bg-slate-900 min-h-screen flex justify-center items-center text-white"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-cyan-400"></div><p className="ml-4">Conectando...</p></div>;
+          }
+          
+          if (!userRole) {
+              return (
+                  <div className="bg-slate-900 min-h-screen flex justify-center items-center text-white p-4">
+                      <div className="w-full max-w-md bg-slate-800 p-8 rounded-xl shadow-2xl text-center">
+                          <h1 className="text-3xl font-bold text-cyan-400 mb-6">¡Bienvenido!</h1>
+                          <p className="text-slate-400 mb-8">Para empezar, dinos qué rol tienes:</p>
+                          <div className="flex flex-col gap-4">
+                              <button onClick={() => handleSetUserRole('coach')} className="w-full flex justify-center items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md transition-colors duration-300"><UsersIcon className="h-6 w-6"/>Soy Entrenador</button>
+                              <button onClick={() => handleSetUserRole('client')} className="w-full flex justify-center items-center gap-2 bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 px-4 rounded-md transition-colors duration-300"><DumbbellIcon/>Soy Cliente</button>
+                          </div>
+                      </div>
+                  </div>
+              );
+          }
+
+          if (userRole === 'coach') {
+              if(loggingForClient) {
+                  return <WorkoutLogger 
+                            userRole='coach'
+                            liveRoutine={liveRoutine}
+                            routines={routines}
+                            sessionStatus={sessionStatus}
+                            handleStartSession={handleStartSession}
+                            handleSaveAndEndSession={handleSaveAndEndSession}
+                            handleNewSession={handleNewSession}
+                            sessionTotalTime={sessionTotalTime}
+                            handleLiveSetChange={handleLiveSetChange}
+                            handleLogSet={handleLogSet}
+                            setIsRoutineModalOpen={setIsRoutineModalOpen}
+                            onExit={() => setLoggingForClient(null)}
+                            clientName={loggingForClient.name}
+                            handleLoadRoutine={handleLoadRoutine}
+                            formatTime={formatTime}
+                            newRoutineName={newRoutineName}
+                            setNewRoutineName={setNewRoutineName}
+                            newRoutineExercises={newRoutineExercises}
+                            setNewRoutineExercises={setNewRoutineExercises}
+                            handleRoutineExerciseChange={handleRoutineExerciseChange}
+                            addExerciseToRoutine={addExerciseToRoutine}
+                            removeExerciseFromRoutine={removeExerciseFromRoutine}
+                            handleSaveRoutine={handleSaveRoutine}
+                            handleDeleteRoutine={handleDeleteRoutine}
+                            isRoutineModalOpen={isRoutineModalOpen}
+                         />
+              }
+
+              return (
+                  <div className="bg-slate-900 min-h-screen text-white font-sans p-4 md:p-8">
+                      <div className="max-w-5xl mx-auto">
+                          <Modal isOpen={isRoutineModalOpen} onClose={() => setIsRoutineModalOpen(false)} title="Gestor de Rutinas de Entrenador">
+                            <div className="space-y-6">
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-3 text-cyan-400">Crear Nueva Rutina</h3>
+                                    <div className="space-y-4 p-4 bg-slate-700 rounded-lg">
+                                        <input type="text" placeholder="Nombre de la Rutina (ej: Día de Piernas)" value={newRoutineName} onChange={e => setNewRoutineName(e.target.value)} className="w-full bg-slate-600 text-white rounded-md p-2 border border-slate-500"/>
+                                        {newRoutineExercises.map((ex, index) => (
+                                            <div key={index} className="flex items-center gap-2">
+                                                <input type="text" placeholder="Nombre del Ejercicio" value={ex.name} onChange={e => handleRoutineExerciseChange(index, 'name', e.target.value)} className="w-full bg-slate-600 text-white rounded-md p-2 border border-slate-500"/>
+                                                <input type="number" value={ex.sets} onChange={e => handleRoutineExerciseChange(index, 'sets', e.target.value)} className="w-24 bg-slate-600 text-white rounded-md p-2 border border-slate-500"/>
+                                                <label className="text-sm text-slate-400">series</label>
+                                                <button onClick={() => removeExerciseFromRoutine(index)} className="text-red-500 hover:text-red-400 p-2"><TrashIcon className="h-4 w-4"/></button>
+                                            </div>
+                                        ))}
+                                        <button onClick={addExerciseToRoutine} className="text-sm text-cyan-400 hover:text-cyan-300">+ Añadir Ejercicio</button>
+                                    </div>
+                                    <button onClick={handleSaveRoutine} className="mt-4 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md">Guardar Rutina</button>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-3 text-cyan-400">Mis Rutinas Guardadas</h3>
+                                    <ul className="space-y-2">
+                                        {routines.length > 0 ? routines.map(r => (
+                                            <li key={r.id} className="flex justify-between items-center bg-slate-700 p-3 rounded-lg">
+                                                <div><p>{r.name} <span className="text-xs text-slate-400">({r.exercises.length} ej.)</span></p></div>
+                                                <button onClick={() => handleDeleteRoutine(r.id)} className="text-red-500 hover:text-red-400 p-2"><TrashIcon/></button>
+                                            </li>
+                                        )) : <p className="text-slate-400">No tienes rutinas guardadas.</p>}
+                                    </ul>
+                                </div>
+                            </div>
+                          </Modal>
+                          <Modal isOpen={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)} title="Asignar Rutina">
+                              <ul className="space-y-2">
+                                  {routines.map(r => (
+                                      <li key={r.id}>
+                                          <button onClick={() => handleAssignRoutine(r)} className="w-full text-left p-3 rounded-md bg-slate-700 hover:bg-slate-600 flex justify-between items-center">
+                                              {r.name}
+                                              <SendIcon className="h-5 w-5 text-cyan-400"/>
+                                          </button>
+                                      </li>
+                                  ))}
+                              </ul>
+                          </Modal>
+                          <header className="flex justify-between items-center mb-8">
+                            <div className="flex items-center">
+                                <UsersIcon className="mr-2 h-8 w-8"/>
+                                <h1 className="text-3xl md:text-4xl font-bold text-cyan-400">Panel de Entrenador</h1>
+                            </div>
+                            <button onClick={handleResetRole} className="text-slate-400 hover:text-white p-2 rounded-full" title="Cambiar Rol">
+                                <LogOutIcon className="h-6 w-6"/>
+                            </button>
+                          </header>
+                          <div className="bg-slate-800 p-4 rounded-xl shadow-lg mb-8 flex justify-between items-center">
+                              <h3 className="text-lg font-semibold">Tu ID de Entrenador: <span className="font-mono text-cyan-400">{userId}</span></h3>
+                              <button onClick={copyUserId} title="Copiar ID" className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-2 px-3 rounded-md transition-colors duration-300 text-sm w-28 justify-center">
+                                  {copySuccess ? <CheckIcon className="h-4 w-4"/> : <CopyIcon className="h-4 w-4"/>}
+                                  {copySuccess ? 'Copiado!' : 'Copiar'}
+                              </button>
+                          </div>
+                           <div className="bg-slate-800 p-6 rounded-xl shadow-lg mb-8">
+                                <button onClick={() => setIsRoutineModalOpen(true)} className="w-full flex justify-center items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md transition-colors duration-300">
+                                    <BookOpenIcon className="h-6 w-6"/> Gestionar Mis Rutinas
+                                </button>
+                            </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                              <div className="md:col-span-1 bg-slate-800 p-6 rounded-xl">
+                                  <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-xl font-semibold">Mis Clientes ({clients.length})</h2>
+                                  </div>
+                                  <ul className="space-y-2">
+                                      {clients.map(client => (
+                                          <li key={client.id} className={`p-3 rounded-md transition-colors ${selectedClientId === client.id ? 'bg-cyan-600' : 'bg-slate-700'}`}>
+                                              <button onClick={() => setSelectedClientId(client.id)} className="w-full text-left font-semibold">
+                                                  {client.clientName || `Cliente ${client.id.substring(0,5)}`}
+                                              </button>
+                                              {selectedClientId === client.id && (
+                                                  <div className="flex gap-2 mt-2">
+                                                      <button onClick={() => setIsAssignModalOpen(true)} className="w-full text-xs flex items-center justify-center gap-1 bg-cyan-700 hover:bg-cyan-800 p-1 rounded">
+                                                          <SendIcon className="h-3 w-3"/> Asignar
+                                                      </button>
+                                                      <button onClick={() => setLoggingForClient({id: client.id, name: client.clientName})} className="w-full text-xs flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 p-1 rounded">
+                                                          <EditIcon className="h-3 w-3"/> Registrar
+                                                      </button>
+                                                  </div>
+                                              )}
+                                          </li>
+                                      ))}
+                                  </ul>
+                              </div>
+                              <div className="md:col-span-2 bg-slate-800 p-6 rounded-xl">
+                                  <h2 className="text-xl font-semibold mb-4">
+                                      {selectedClientId ? `Historial de ${clients.find(c=>c.id === selectedClientId)?.clientName || 'Cliente'}` : "Selecciona un cliente para ver su historial"}
+                                  </h2>
+                                  {selectedClientId ? (
+                                      <div className="overflow-x-auto">
+                                           <table className="w-full text-left">
+                                              <thead className="sticky top-0 bg-slate-800 z-10"><tr className="border-b border-slate-700"><th className="p-4 text-sm font-semibold text-slate-300">Ejercicio</th><th className="p-4 text-sm font-semibold text-slate-300">Detalle</th><th className="p-4 text-sm font-semibold text-slate-300">Tiempos</th></tr></thead>
+                                              <tbody>
+                                                {selectedClientWorkoutsGrouped.length > 0 ? selectedClientWorkoutsGrouped.map(date => {
+                                                    const sessionWorkouts = clientWorkouts.filter(w => w.date === date);
+                                                    const sessionTotals = calculateSessionTotals(sessionWorkouts);
+                                                    return (<React.Fragment key={date}>
+                                                        <tr className="bg-slate-700"><th colSpan="3" className="p-3 text-md font-semibold text-white">{new Date(date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</th></tr>
+                                                        {sessionWorkouts.map(w => (<tr key={w.id} className="border-b border-slate-700/50">
+                                                            <td className="p-4 font-medium text-cyan-400">{w.exercise}</td>
+                                                            <td className="p-4 font-mono text-sm">{w.sets.map(s => `${s.reps}x${s.weight}kg`).join(' / ')}</td>
+                                                            <td className="p-4 font-mono text-xs text-slate-400">{w.setCompletionTimes?.map(t => formatTime(t)).join(' / ') || 'N/A'}</td>
+                                                        </tr>))}
+                                                        <tr className="bg-slate-800 border-b-4 border-slate-900 text-cyan-300">
+                                                            <td className="p-3 font-bold text-right">Total Sesión:</td>
+                                                            <td className="p-3 font-bold font-mono text-sm" colSpan="2">{sessionTotals.totalVolume.toLocaleString('es-ES')} kg / {sessionTotals.totalReps} reps / {formatTime(sessionTotals.totalTime)}</td>
+                                                        </tr>
+                                                    </React.Fragment>)
+                                                }) : <tr><td colSpan="3" className="text-center p-8 text-slate-400">Este cliente aún no tiene entrenamientos registrados.</td></tr>}
+                                              </tbody>
+                                          </table>
+                                      </div>
+                                  ) : <div className="text-center py-10 px-4 bg-slate-700/30 rounded-lg"><p className="text-slate-400">Selecciona un cliente de la lista.</p></div>}
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              );
+          }
+
+          // --- VISTA DE CLIENTE ---
+          return <WorkoutLogger 
+                    userRole='client'
+                    userId={userId}
+                    linkedCoachId={linkedCoachId}
+                    coachIdInput={coachIdInput}
+                    setCoachIdInput={setCoachIdInput}
+                    handleLinkCoach={handleLinkCoach}
+                    liveRoutine={liveRoutine}
+                    routines={routines}
+                    assignedRoutines={assignedRoutines}
+                    sessionStatus={sessionStatus}
+                    handleStartSession={handleStartSession}
+                    handleSaveAndEndSession={handleSaveAndEndSession}
+                    handleNewSession={handleNewSession}
+                    sessionTotalTime={sessionTotalTime}
+                    handleLiveSetChange={handleLiveSetChange}
+                    handleLogSet={handleLogSet}
+                    setIsRoutineModalOpen={setIsRoutineModalOpen}
+                    workouts={workouts}
+                    handleResetRole={handleResetRole}
+                    handleLoadRoutine={handleLoadRoutine}
+                    formatTime={formatTime}
+                    newRoutineName={newRoutineName}
+                    setNewRoutineName={setNewRoutineName}
+                    newRoutineExercises={newRoutineExercises}
+                    setNewRoutineExercises={setNewRoutineExercises}
+                    handleRoutineExerciseChange={handleRoutineExerciseChange}
+                    addExerciseToRoutine={addExerciseToRoutine}
+                    removeExerciseFromRoutine={removeExerciseFromRoutine}
+                    handleSaveRoutine={handleSaveRoutine}
+                    handleDeleteRoutine={handleDeleteRoutine}
+                    isRoutineModalOpen={isRoutineModalOpen}
+                />;
+        }
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
